@@ -121,8 +121,7 @@ customStatus_e customProcessor(txContext_t *context) {
                 eth_plugin_prepare_provide_parameter(&pluginProvideParameter,
                                                      dataContext.tokenContext.data,
                                                      dataContext.tokenContext.fieldIndex * 32 + 4);
-                if (!eth_plugin_call(NULL,
-                                     ETH_PLUGIN_PROVIDE_PARAMETER,
+                if (!eth_plugin_call(ETH_PLUGIN_PROVIDE_PARAMETER,
                                      (void *) &pluginProvideParameter)) {
                     PRINTF("Plugin parameter call failed\n");
                     return CUSTOM_FAULT;
@@ -282,7 +281,7 @@ void finalizeParsing(bool direct) {
     if (dataContext.tokenContext.pluginStatus >= ETH_PLUGIN_RESULT_SUCCESSFUL) {
         genericUI = false;
         eth_plugin_prepare_finalize(&pluginFinalize);
-        if (!eth_plugin_call(NULL, ETH_PLUGIN_FINALIZE, (void *) &pluginFinalize)) {
+        if (!eth_plugin_call(ETH_PLUGIN_FINALIZE, (void *) &pluginFinalize)) {
             PRINTF("Plugin finalize call failed\n");
             reportFinalizeError(direct);
             if (!direct) {
@@ -290,14 +289,25 @@ void finalizeParsing(bool direct) {
             }
         }
         // Lookup tokens if requested
-        if (pluginFinalize.tokenLookup1 != NULL) {
-            ethPluginProvideToken_t pluginProvideToken;
-            token1 = getKnownToken(pluginFinalize.tokenLookup1);
+        ethPluginProvideToken_t pluginProvideToken;
+        if ((pluginFinalize.tokenLookup1 != NULL) || (pluginFinalize.tokenLookup2 != NULL)) {
+            if (pluginFinalize.tokenLookup1 != NULL) {
+                PRINTF("Lookup1: %.*H\n", ADDRESS_LENGTH, pluginFinalize.tokenLookup1);
+                token1 = getKnownToken(pluginFinalize.tokenLookup1);
+                if (token1 != NULL) {
+                    PRINTF("Token1 ticker: %s\n", token1->ticker);
+                }
+            }
             if (pluginFinalize.tokenLookup2 != NULL) {
+                PRINTF("Lookup2: %.*H\n", ADDRESS_LENGTH, pluginFinalize.tokenLookup2);
                 token2 = getKnownToken(pluginFinalize.tokenLookup2);
+                if (token2 != NULL) {
+                    PRINTF("Token2 ticker: %s\n", token2->ticker);
+                }
             }
             eth_plugin_prepare_provide_token(&pluginProvideToken, token1, token2);
-            if (!eth_plugin_call(NULL, ETH_PLUGIN_PROVIDE_TOKEN, (void *) &pluginProvideToken)) {
+            if (eth_plugin_call(ETH_PLUGIN_PROVIDE_TOKEN, (void *) &pluginProvideToken) <=
+                ETH_PLUGIN_RESULT_UNSUCCESSFUL) {
                 PRINTF("Plugin provide token call failed\n");
                 reportFinalizeError(direct);
                 if (!direct) {
@@ -311,7 +321,10 @@ void finalizeParsing(bool direct) {
             switch (pluginFinalize.uiType) {
                 case ETH_UI_TYPE_GENERIC:
                     dataPresent = false;
-                    dataContext.tokenContext.pluginUiMaxItems = pluginFinalize.numScreens;
+                    // Add the number of screens + the number of additional screens to get the total
+                    // number of screens needed.
+                    dataContext.tokenContext.pluginUiMaxItems =
+                        pluginFinalize.numScreens + pluginProvideToken.additionalScreens;
                     break;
                 case ETH_UI_TYPE_AMOUNT_ADDRESS:
                     genericUI = true;
@@ -414,7 +427,7 @@ void finalizeParsing(bool direct) {
         }
     }
 
-    bool no_consent = false;
+    bool no_consent;
 
     no_consent = called_from_swap;
 

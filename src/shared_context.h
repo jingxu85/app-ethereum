@@ -22,6 +22,8 @@
 
 #define WEI_TO_ETHER 18
 
+#define SELECTOR_LENGTH 4
+
 #define N_storage (*(volatile internalStorage_t *) PIC(&N_storage_real))
 
 typedef struct internalStorage_t {
@@ -50,7 +52,7 @@ typedef struct tokenContext_t {
     char pluginName[PLUGIN_ID_LENGTH];
     uint8_t pluginStatus;
 
-    uint8_t data[32];
+    uint8_t data[INT256_LENGTH];
     uint8_t fieldIndex;
     uint8_t fieldOffset;
 
@@ -58,7 +60,13 @@ typedef struct tokenContext_t {
     uint8_t pluginUiCurrentItem;
     uint8_t pluginUiState;
 
-    uint8_t pluginContext[3 * 32];
+    union {
+        struct {
+            uint8_t contract_address[ADDRESS_LENGTH];
+            uint8_t method_selector[SELECTOR_LENGTH];
+        };
+        uint8_t pluginContext[5 * INT256_LENGTH];
+    };
 
 #ifdef HAVE_STARKWARE
     uint8_t quantum[32];
@@ -72,14 +80,14 @@ typedef struct tokenContext_t {
 typedef struct publicKeyContext_t {
     cx_ecfp_public_key_t publicKey;
     uint8_t address[41];
-    uint8_t chainCode[32];
+    uint8_t chainCode[INT256_LENGTH];
     bool getChaincode;
 } publicKeyContext_t;
 
 typedef struct transactionContext_t {
     uint8_t pathLength;
     uint32_t bip32Path[MAX_BIP32_PATH];
-    uint8_t hash[32];
+    uint8_t hash[INT256_LENGTH];
     tokenDefinition_t tokens[MAX_TOKEN];
     uint8_t tokenSet[MAX_TOKEN];
     uint8_t currentTokenIndex;
@@ -88,7 +96,7 @@ typedef struct transactionContext_t {
 typedef struct messageSigningContext_t {
     uint8_t pathLength;
     uint32_t bip32Path[MAX_BIP32_PATH];
-    uint8_t hash[32];
+    uint8_t hash[INT256_LENGTH];
     uint32_t remainingLength;
 } messageSigningContext_t;
 
@@ -163,9 +171,12 @@ typedef struct txStringProperties_t {
                       // chainID for their token / chain.
 } txStringProperties_t;
 
+#define SHARED_CTX_FIELD_1_SIZE 100
+#define SHARED_CTX_FIELD_2_SIZE 40
+
 typedef struct strDataTmp_t {
-    char tmp[100];
-    char tmp2[40];
+    char tmp[SHARED_CTX_FIELD_1_SIZE];
+    char tmp2[SHARED_CTX_FIELD_2_SIZE];
 } strDataTmp_t;
 
 typedef union {
@@ -185,6 +196,7 @@ extern const internalStorage_t N_storage_real;
 
 extern bool called_from_swap;
 extern bool dataPresent;
+extern bool externalPluginIsSet;
 extern uint8_t appState;
 #ifdef HAVE_STARKWARE
 extern bool quantumSet;

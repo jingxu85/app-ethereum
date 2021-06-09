@@ -22,6 +22,7 @@
 #include "ethUtils.h"
 #include "uint256.h"
 #include "tokens.h"
+#include "utils.h"
 
 static const unsigned char hex_digits[] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
@@ -36,7 +37,7 @@ void array_hexstr(char *strbuf, const void *bin, unsigned int len) {
 }
 
 void convertUint256BE(uint8_t *data, uint32_t length, uint256_t *target) {
-    uint8_t tmp[32];
+    uint8_t tmp[INT256_LENGTH];
     memset(tmp, 0, 32);
     memmove(tmp + 32 - length, data, length);
     readu256BE(tmp, target);
@@ -72,16 +73,62 @@ uint32_t u32_from_BE(uint8_t *in, uint8_t size, bool strict) {
     return res;
 }
 
-void amountToString(uint8_t *amount,
+bool uint256_to_decimal(const uint8_t *value, size_t value_len, char *out, size_t out_len) {
+    if (value_len > INT256_LENGTH) {
+        // value len is bigger than INT256_LENGTH ?!
+        return false;
+    }
+
+    uint16_t n[16] = {0};
+    // Copy and right-align the number
+    memcpy((uint8_t *) n + INT256_LENGTH - value_len, value, value_len);
+
+    // Special case when value is 0
+    if (allzeroes(n, INT256_LENGTH)) {
+        if (out_len < 2) {
+            // Not enough space to hold "0" and \0.
+            return false;
+        }
+        strncpy(out, "0", out_len);
+        return true;
+    }
+
+    uint16_t *p = n;
+    for (int i = 0; i < 16; i++) {
+        n[i] = __builtin_bswap16(*p++);
+    }
+    int pos = out_len;
+    while (!allzeroes(n, sizeof(n))) {
+        if (pos == 0) {
+            return false;
+        }
+        pos -= 1;
+        int carry = 0;
+        for (int i = 0; i < 16; i++) {
+            int rem = ((carry << 16) | n[i]) % 10;
+            n[i] = ((carry << 16) | n[i]) / 10;
+            carry = rem;
+        }
+        out[pos] = '0' + carry;
+    }
+    memmove(out, out + pos, out_len - pos);
+    out[out_len - pos] = 0;
+    return true;
+}
+
+void amountToString(const uint8_t *amount,
                     uint8_t amount_size,
                     uint8_t decimals,
-                    char *ticker,
+                    const char *ticker,
                     char *out_buffer,
                     uint8_t out_buffer_size) {
-    uint256_t amount_256;
-    char tmp_buffer[100];
-    convertUint256BE(amount, amount_size, &amount_256);
-    tostring256(&amount_256, 10, tmp_buffer, 100);
+    char tmp_buffer[100] = {0};
+
+    bool success = uint256_to_decimal(amount, amount_size, tmp_buffer, sizeof(tmp_buffer));
+
+    if (!success) {
+        THROW(0x6504);
+    }
 
     uint8_t amount_len = strnlen(tmp_buffer, sizeof(tmp_buffer));
     uint8_t ticker_len = strnlen(ticker, MAX_TICKER_LEN);

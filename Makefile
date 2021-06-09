@@ -29,8 +29,8 @@ APP_LOAD_PARAMS += --path "45'"
 APP_LOAD_PARAMS += --path "1517992542'/1101353413'"
 
 APPVERSION_M=1
-APPVERSION_N=7
-APPVERSION_P=8
+APPVERSION_N=8
+APPVERSION_P=5
 APPVERSION=$(APPVERSION_M).$(APPVERSION_N).$(APPVERSION_P)
 APP_LOAD_FLAGS= --appFlags 0x240 --dep Ethereum:$(APPVERSION)
 
@@ -323,6 +323,26 @@ SDK_SOURCE_PATH  += lib_stusb lib_stusb_impl lib_u2f
 SDK_SOURCE_PATH  += lib_ux
 ifeq ($(TARGET_NAME),TARGET_NANOX)
 SDK_SOURCE_PATH  += lib_blewbxx lib_blewbxx_impl
+endif
+
+### initialize plugin SDK submodule if needed, rebuild it, and warn if a difference is noticed
+ifeq ($(CHAIN),ethereum)
+ifneq ($(shell git submodule status | grep '^[-+]'),)
+$(info INFO: Need to reinitialize git submodules)
+$(shell git submodule update --init)
+endif
+
+# rebuild
+$(shell python3 ethereum-plugin-sdk/build_sdk.py)
+
+# check if a difference is noticed (fail if it happens in CI build)
+ifneq ($(shell git status | grep 'ethereum-plugin-sdk'),)
+ifneq ($(JENKINS_URL),)
+$(error ERROR: please update ethereum-plugin-sdk submodule first)
+else
+$(warning WARNING: please update ethereum-plugin-sdk submodule first)
+endif
+endif
 endif
 
 load: all

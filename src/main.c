@@ -51,6 +51,7 @@ cx_sha3_t global_sha3;
 uint8_t appState;
 bool dataPresent;
 bool called_from_swap;
+bool externalPluginIsSet;
 #ifdef HAVE_STARKWARE
 bool quantumSet;
 #endif
@@ -71,14 +72,15 @@ chain_config_t *chainConfig;
 void reset_app_context() {
     // PRINTF("!!RESET_APP_CONTEXT\n");
     appState = APP_STATE_IDLE;
-    memset(tmpCtx.transactionContext.tokenSet, 0, MAX_TOKEN);
     called_from_swap = false;
+    externalPluginIsSet = false;
 #ifdef HAVE_STARKWARE
     quantumSet = false;
 #endif
 #ifdef HAVE_ETH2
     eth2WithdrawalIndex = 0;
 #endif
+    memset((uint8_t *) &tmpCtx, 0, sizeof(tmpCtx));
     memset((uint8_t *) &txContext, 0, sizeof(txContext));
     memset((uint8_t *) &tmpContent, 0, sizeof(tmpContent));
 }
@@ -368,7 +370,7 @@ tokenDefinition_t *getKnownToken(uint8_t *contractAddress) {
                 currentToken = (tokenDefinition_t *) PIC(&TOKENS_THETA[i]);
                 break;
         }
-        if (memcmp(currentToken->address, tmpContent.txContent.destination, 20) == 0) {
+        if (memcmp(currentToken->address, tmpContent.txContent.destination, ADDRESS_LENGTH) == 0) {
             return currentToken;
         }
     }
@@ -376,7 +378,7 @@ tokenDefinition_t *getKnownToken(uint8_t *contractAddress) {
     for (size_t i = 0; i < MAX_TOKEN; i++) {
         currentToken = &tmpCtx.transactionContext.tokens[i];
         if (tmpCtx.transactionContext.tokenSet[i] &&
-            (memcmp(currentToken->address, contractAddress, 20) == 0)) {
+            (memcmp(currentToken->address, contractAddress, ADDRESS_LENGTH) == 0)) {
             PRINTF("Token found at index %d\n", i);
             return currentToken;
         }
@@ -494,6 +496,15 @@ void handleApdu(unsigned int *flags, unsigned int *tx) {
                                                        G_io_apdu_buffer[OFFSET_LC],
                                                        flags,
                                                        tx);
+                    break;
+
+                case INS_SET_EXTERNAL_PLUGIN:
+                    handleSetExternalPlugin(G_io_apdu_buffer[OFFSET_P1],
+                                            G_io_apdu_buffer[OFFSET_P2],
+                                            G_io_apdu_buffer + OFFSET_CDATA,
+                                            G_io_apdu_buffer[OFFSET_LC],
+                                            flags,
+                                            tx);
                     break;
 
                 case INS_SIGN:
@@ -919,14 +930,11 @@ __attribute__((section(".boot"))) int main(int arg0) {
     }
     switch (args->command) {
         case RUN_APPLICATION:
-            // coin application launched from dashboard
-            if (args->chain_config == NULL)
-                app_exit();
-            else
-                coin_main(args->chain_config);
+            // called as ethereum from altcoin or plugin
+            coin_main(args->chain_config);
             break;
         default:
-            // called as bitcoin or altcoin library
+            // called as ethereum or altcoin library
             library_main(args);
     }
 #endif

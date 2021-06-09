@@ -8,11 +8,13 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: docker://ledgerhq/ledger-app-builder:1.6.1-2
+      image: docker://ledgerhq/ledger-app-builder:2.0.0-1
 
     steps:
       - name: Clone
         uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
       - name: Build an altcoin
         run: |

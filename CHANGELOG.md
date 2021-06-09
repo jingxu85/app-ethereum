@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.8.5](https://github.com/ledgerhq/app-ethereum/compare/1.7.9...1.8.5) - 2021-6-8
+
+### Added
+
+Added support for external plugins.
+
+## [1.7.9](https://github.com/ledgerhq/app-ethereum/compare/1.7.8...1.7.9) - 2021-6-2
+
+### Added
+
+Added support for Flare Network and Theta Chain.
+
 ## [1.7.8](https://github.com/ledgerhq/app-ethereum/compare/1.7.7...1.7.8) - 2021-5-20
 
 ### Fixed
@@ -23,6 +35,14 @@ Version bump needed for deployment reasons, nothing changed.
 
 Version bump needed for deployment reasons, nothing changed.
 
+## [1.7.7](https://github.com/ledgerhq/app-ethereum/compare/1.7.6...1.7.7) - 2021-5-19
+
+N/A
+
+## [1.7.6](https://github.com/ledgerhq/app-ethereum/compare/1.7.6...1.7.6) - 2021-5-14
+
+N/A
+
 ## [1.7.5](https://github.com/ledgerhq/app-ethereum/compare/1.7.4...1.7.5) - 2021-5-10
 
 ### Fixed
@@ -34,6 +54,7 @@ Version bump needed for deployment reasons, nothing changed.
 ### Fixed
 
 - Fixed a bug that prevented using Ethereum sidechains
+
 ## [1.7.3](https://github.com/ledgerhq/app-ethereum/compare/1.7.2...1.7.3) - 2021-5-5
 
 ### Added
