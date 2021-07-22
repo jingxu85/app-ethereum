@@ -81,35 +81,14 @@ void copyTxData(txContext_t *context, uint8_t *out, uint32_t length) {
 }
 
 void decodeThetaTx(txContext_t *context, uint8_t *out, uint32_t length) {
-    // if (context->commandLength < length) {
-    //     PRINTF("copyTxData Underflow\n");
-    //     THROW(EXCEPTION);
-    // }
-
-    // context->content->thetaTXLength = length;
-    // memmove(context->content->thetaTX, context->workBuffer, length);
-    // if (!(context->processingField && context->fieldSingleByte)) {
-    //     cx_hash((cx_hash_t *) context->sha3, 0, context->workBuffer, length, NULL, 0);
-    // }
-    // context->workBuffer += length;
-    // context->commandLength -= length;
-    // if (context->processingField) {
-    //     context->currentFieldPos += length;
-    // }
     if (context->commandLength < length) {
         PRINTF("copyTxData Underflow\n");
         THROW(EXCEPTION);
     }
-    if (out != NULL) {
-        memmove(out, context->workBuffer, length);
-    }
-    if (!(context->processingField && context->fieldSingleByte)) {
-        cx_hash((cx_hash_t *) context->sha3, 0, context->workBuffer, length, NULL, 0);
-    }
     // ----------------------------------------- decode Theta Tx data Begin
     char output[300];
     uint32_t offset;
-    uint8_t i, thetaOffset = 12, pos = context->workBuffer - thetaOffset;
+    uint8_t i, thetaOffset = 12, pos = length - thetaOffset;
     bool valid, canDecode, decoded;
     uint8_t *rlpP;
     uint32_t tmpCurrentFieldLength;//, tmpCurrentFieldPos, thetaCurrentFieldLength;
@@ -117,18 +96,18 @@ void decodeThetaTx(txContext_t *context, uint8_t *out, uint32_t length) {
     
     BEGIN_TRY {
         TRY {
-            // rlpP = context->workBuffer + thetaOffset;
-            // for (i = 0; i < (context->workBuffer - thetaOffset) * 2; i++) {
-            //     uint8_t digit = rlpP[i / 2];
-            //     if ((i % 2) == 0) {
-            //         digit = (digit >> 4) & 0x0f;
-            //     } else {
-            //         digit = digit & 0x0f;
-            //     }
-            //     output[i] = HEXDIGITS[digit];
-            // }
-            // output[i] = '\0';
-            // PRINTF("Decoding ThetaTx : %s ", output);
+            rlpP = context->workBuffer + thetaOffset;
+            for (i = 0; i < pos * 2; i++) {
+            // for (i = 0; i < (length - thetaOffset) * 2; i++) {
+                uint8_t digit = rlpP[i / 2];
+                if ((i % 2) == 0) {
+                    digit = (digit >> 4) & 0x0f;
+                } else {
+                    digit = digit & 0x0f;
+                }
+                output[i] = HEXDIGITS[digit];
+            }
+            output[i] = '\0';
             if (length >= thetaOffset) {
                 canDecode = rlpCanDecode(rlpP, pos, &valid);
                 if (canDecode) {
@@ -137,7 +116,7 @@ void decodeThetaTx(txContext_t *context, uint8_t *out, uint32_t length) {
                         rlpP += offset;
                         decoded = rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
                         if (decoded && tmpCurrentFieldIsList) {
-                            //TODO : get gas fee
+                            //gas fee
                             rlpP += offset + tmpCurrentFieldLength;
                         } else {
                             return;
@@ -150,6 +129,7 @@ void decodeThetaTx(txContext_t *context, uint8_t *out, uint32_t length) {
                         }
                         decoded = rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
                         if (decoded && tmpCurrentFieldIsList) {
+                            PRINTF("jlog3-4 Decoded to");
                             //copy address
                             if (*(rlpP + 2) == 148) {
                                 rlpP += 3;
@@ -167,6 +147,7 @@ void decodeThetaTx(txContext_t *context, uint8_t *out, uint32_t length) {
                                 memmove(context->content->value.value, rlpP + 1, tmpCurrentFieldLength);
                                 context->content->value.length = tmpCurrentFieldLength;
                             }
+                            PRINTF("jlog3-5 Decoded value");
                         }
                     }
                 }
@@ -181,11 +162,17 @@ void decodeThetaTx(txContext_t *context, uint8_t *out, uint32_t length) {
     END_TRY;
 
     //------------------------------------------ decode Theta Tx data End
-    context->workBuffer += length;
-    context->commandLength -= length;
-    if (context->processingField) {
-        context->currentFieldPos += length;
-    }
+    // if (out != NULL) {
+    //     memmove(out, context->workBuffer, length);
+    // }
+    // if (!(context->processingField && context->fieldSingleByte)) {
+    //     cx_hash((cx_hash_t *) context->sha3, 0, context->workBuffer, length, NULL, 0);
+    // }
+    // context->workBuffer += length;
+    // context->commandLength -= length;
+    // if (context->processingField) {
+    //     context->currentFieldPos += length;
+    // }
 }
 
 static void processContent(txContext_t *context) {
@@ -374,13 +361,13 @@ static void processData(txContext_t *context) {
     if (context->currentFieldPos < context->currentFieldLength) {
         uint32_t copySize =
             MIN(context->commandLength, context->currentFieldLength - context->currentFieldPos);
-        PRINTF("jlog2 kind: %u, theta kind: %u\n", chainConfig->kind, CHAIN_KIND_THETA);
-        if (chainConfig->kind == CHAIN_KIND_THETA) {
-            // copyTxData(context, NULL, copySize);
+        if (allzeroes(context->content->destination, sizeof(context->content->destination)) && allzeroes(&context->content->value, sizeof(context->content->value))
+            && allzeroes(&context->content->gasprice, sizeof(context->content->gasprice))) { //Theta Tx
+            chainConfig->kind = CHAIN_KIND_THETA;
             decodeThetaTx(context, NULL, copySize);
-        } else {
-            copyTxData(context, NULL, copySize);
         }
+        copyTxData(context, NULL, copySize);
+
     }
     if (context->currentFieldPos == context->currentFieldLength) {
         context->currentField++;
