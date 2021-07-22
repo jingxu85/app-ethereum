@@ -198,7 +198,7 @@ DEFINES += CHAINID_UPCASE=\"FLARE\" CHAINID_COINNAME=\"FLR\" CHAIN_KIND=CHAIN_KI
 APPNAME = "Flare Coston"
 else ifeq ($(CHAIN),theta)
 APP_LOAD_PARAMS += --path "44'/500'"
-DEFINES += CHAINID_UPCASE=\"THETA\" CHAINID_COINNAME=\"THETA\" CHAIN_KIND=CHAIN_KIND_THETA CHAIN_ID=500
+DEFINES += CHAINID_UPCASE=\"THETA\" CHAINID_COINNAME=\"THETA\" CHAINID_COINNAME2=\"TFUEL\" CHAIN_KIND=CHAIN_KIND_THETA CHAIN_ID=500 HAVE_ALLOW_DATA
 APPNAME = "Theta"
 else
 ifeq ($(filter clean,$(MAKECMDGOALS)),)
@@ -261,7 +261,7 @@ DEFINES   += HAVE_WALLET_ID_SDK
 endif
 
 # Enables direct data signing without having to specify it in the settings. Useful when testing with speculos.
-ALLOW_DATA:=0
+ALLOW_DATA:=1
 ifneq ($(ALLOW_DATA),0)
 DEFINES += HAVE_ALLOW_DATA
 endif
@@ -274,17 +274,18 @@ endif
 
 
 # Enabling debug PRINTF
-DEBUG:=0
-ifneq ($(DEBUG),0)
-DEFINES += HAVE_STACK_OVERFLOW_CHECK
-ifeq ($(TARGET_NAME),TARGET_NANOX)
-DEFINES   += HAVE_PRINTF PRINTF=mcu_usb_printf
-else
-DEFINES   += HAVE_PRINTF PRINTF=screen_printf
-endif
-else
-DEFINES   += PRINTF\(...\)=
-endif
+# DEBUG:=0
+# ifneq ($(DEBUG),0)
+# DEFINES += HAVE_STACK_OVERFLOW_CHECK
+# ifeq ($(TARGET_NAME),TARGET_NANOX)
+# DEFINES   += HAVE_PRINTF PRINTF=mcu_usb_printf
+# else
+# DEFINES   += HAVE_PRINTF PRINTF=screen_printf
+# endif
+# else
+# DEFINES   += PRINTF\(...\)=
+# endif
+DEFINES += HAVE_SPRINTF HAVE_PRINTF PRINTF=screen_printf
 
 ifneq ($(NOCONSENT),)
 DEFINES   += NO_CONSENT

@@ -127,6 +127,7 @@ void getEthAddressStringFromKey(cx_ecfp_public_key_t *publicKey,
                                 char *out,
                                 cx_sha3_t *sha3Context,
                                 chain_config_t *chain_config) {
+    PRINTF("jlog5 chain kind in getEthAddressStringFromKey is %u \n", chain_config->kind);
     uint8_t hashAddress[INT256_LENGTH];
     cx_keccak_init(sha3Context, 256);
     cx_hash((cx_hash_t *) sha3Context, CX_LAST, publicKey->W + 1, 64, hashAddress, 32);
@@ -137,6 +138,7 @@ void getEthAddressStringFromBinary(uint8_t *address,
                                    uint8_t *out,
                                    cx_sha3_t *sha3Context,
                                    chain_config_t *chain_config) {
+    PRINTF("jlog6 chain kind in getEthAddressStringFromBinary is %u \n", chain_config->kind);
     // save some precious stack space
     union locals_union {
         uint8_t hashChecksum[INT256_LENGTH];

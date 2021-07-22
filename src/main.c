@@ -729,6 +729,10 @@ void init_coin_config(chain_config_t *coin_config) {
     strcpy(coin_config->coinName, CHAINID_COINNAME " ");
     coin_config->chainId = CHAIN_ID;
     coin_config->kind = CHAIN_KIND;
+    PRINTF("jlog1 kind: %u, theta kind: %u\n", coin_config->kind, CHAIN_KIND_THETA);
+    if (coin_config->kind == CHAIN_KIND_THETA) {
+        strcpy(coin_config->coinName2, "TFUEL");
+    }
 }
 
 void coin_main(chain_config_t *coin_config) {

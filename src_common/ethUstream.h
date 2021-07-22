@@ -104,6 +104,7 @@ typedef struct txInt256_t {
 } txInt256_t;
 
 typedef struct txContent_t {
+    bool useCoinname2; // Theta/Tfuel
     txInt256_t gasprice;
     txInt256_t startgas;
     txInt256_t value;
