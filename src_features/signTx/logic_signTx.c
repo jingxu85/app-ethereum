@@ -197,7 +197,7 @@ void reportFinalizeError(bool direct) {
 
 void computeFees(char *displayBuffer, uint32_t displayBufferSize) {
     uint256_t gasPrice, startGas, uint256;
-    char *feeTicker = get_network_ticker();
+    char *feeTicker = (chainConfig->kind == CHAIN_KIND_THETA) ? "TFUEL" : get_network_ticker();
     uint8_t tickerOffset = 0;
     uint32_t i;
 
@@ -395,6 +395,9 @@ void finalizeParsing(bool direct) {
     }
     // Prepare amount to display
     if (genericUI) {
+        if (chainConfig->kind == CHAIN_KIND_THETA) { // choose from THETA/TFUEL
+            ticker = tmpContent.txContent.thetaCoinName ? "THETA" : "TFUEL";
+        }
         amountToString(tmpContent.txContent.value.value,
                        tmpContent.txContent.value.length,
                        decimals,
