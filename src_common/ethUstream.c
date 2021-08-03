@@ -79,27 +79,33 @@ void copyTxData(txContext_t *context, uint8_t *out, uint32_t length) {
         context->currentFieldPos += length;
     }
 }
+void decodeThetaTxValue(txContext_t *context, uint8_t *rlpP) {
+    uint32_t offset, tmpCurrentFieldLength;
+    bool tmpCurrentFieldIsList, decoded;
+    PRINTF("Decode Theta Value, current : %d\n", *rlpP);
+    if (*rlpP != 128) {//Theta value
+        context->content->thetaCoinName = true;
+    } else { // Tfuel value
+        rlpP++;
+        context->content->thetaCoinName = false;
+    }
+    decoded = rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
+    if (tmpCurrentFieldLength > INT256_LENGTH) {
+        THROW(EXCEPTION);
+    }
+    rlpP += offset;
+    memmove(context->content->value.value, rlpP, tmpCurrentFieldLength);                                
+    context->content->value.length = tmpCurrentFieldLength;
+}
 
 void decodeThetaTxAddressAndValue(txContext_t *context, uint8_t *rlpP, uint32_t length) {
-    PRINTF("decodeThetaTxAddressAndValue tx:\n%.*H\n", length, rlpP);
-    uint32_t offset, tmpCurrentFieldLength;
-    bool tmpCurrentFieldIsList;
-    rlpP += 3;
+    PRINTF("Decode Theta Address:\n%.*H\n", length, rlpP);
+    bool stakeTx = context->content->thetaTxType == THETA_STAKE_TX;
+    uint32_t offset = stakeTx ? 2 : 3;
+    rlpP += offset;
     memmove(context->content->destination, rlpP, ADDRESS_LENGTH); // decode address
-    rlpP += ADDRESS_LENGTH + 1;
-    if (*rlpP != 128 && rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList)) {//Theta is not 0
-        context->content->thetaCoinName = true;
-        PRINTF("theta offset %d, length %d, isList %d, current %d \n", offset, tmpCurrentFieldLength, tmpCurrentFieldIsList, *rlpP);
-        rlpP += offset;
-        memmove(context->content->value.value, rlpP, tmpCurrentFieldLength);                                
-        PRINTF("value received:\n%.*H\n", tmpCurrentFieldLength, context->content->value.value);
-        context->content->value.length = tmpCurrentFieldLength;
-    } else if (rlpDecodeLength(++rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList)) { // Tfuel
-        PRINTF("tfuel offset %d, length %d, isList %d, current %d \n", offset, tmpCurrentFieldLength, tmpCurrentFieldIsList, *rlpP);
-        context->content->thetaCoinName = false;
-        rlpP += offset;
-        memmove(context->content->value.value, rlpP, tmpCurrentFieldLength);
-        context->content->value.length = tmpCurrentFieldLength;
+    if (!stakeTx) {
+        decodeThetaTxValue(context, rlpP + ADDRESS_LENGTH + 1);
     }
     context->content->thetaDecodeSatus = THETATX_FINISHED;
 }
@@ -111,36 +117,48 @@ void decodeThetaTx(txContext_t *context, uint32_t length) {
     }
     uint32_t offset, tmpCurrentFieldLength;
     bool decoded, tmpCurrentFieldIsList;
-    uint8_t *rlpP = context->workBuffer;
-    PRINTF("decode tx:\n%.*H\n", length, rlpP);
-    PRINTF("tx length %d, thetaDecodeSatus %d \n", length, context->content->thetaDecodeSatus);    
+    uint8_t *rlpP = context->workBuffer, *tmpRLPPointer;
+
+    PRINTF("Decode Theta Tx:\n%.*H\n", length, rlpP);
     BEGIN_TRY {
         TRY {
             if (context->content->thetaDecodeSatus == THETATX_INIT) {
                 decoded = rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
                 rlpP += offset + tmpCurrentFieldLength; // skip chainID
-                rlpP++; // skip tx type
+                context->content->thetaTxType = *rlpP;
+                PRINTF("Tx Type:%d \n", context->content->thetaTxType);
+                rlpP++;
                 length -= offset + tmpCurrentFieldLength + 1;
-                PRINTF("fee current %d \n", *rlpP);
-                rlpP += 4;
                 decoded = rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
-                PRINTF("fee offset %d, length %d, isList %d, current %d \n", offset, tmpCurrentFieldLength, tmpCurrentFieldIsList, *rlpP);
+                PRINTF("After TxType, tmpCurrentFieldLength %d, offset %d \n", tmpCurrentFieldLength, offset);
+                rlpP += offset + 2;
+                length -= offset + 2;
+                decoded = rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
+                if (tmpCurrentFieldLength + offset > length || tmpCurrentFieldLength > INT256_LENGTH) {
+                    THROW(EXCEPTION);
+                }
                 rlpP += offset;
-                memmove(context->content->startgas.value, rlpP, tmpCurrentFieldLength); // decode gas
+                memmove(context->content->startgas.value, rlpP, tmpCurrentFieldLength); // copy gas
                 context->content->startgas.length = tmpCurrentFieldLength;
                 context->content->gasprice.value[0] = 1;    // set gas price to 1
                 context->content->gasprice.length = 1;
+                // decodeThetaTxFee(context, rlpP, tmpCurrentFieldLength)
                 rlpP += tmpCurrentFieldLength;
-                length -= offset + tmpCurrentFieldLength + 4;
-                // skip input
-                decoded = rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
-                PRINTF("input offset %d, length %d, isList %d, current %d \n", offset, tmpCurrentFieldLength, tmpCurrentFieldIsList, *rlpP);
-                rlpP += offset + tmpCurrentFieldLength;
                 length -= offset + tmpCurrentFieldLength;
                 decoded = rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
-                PRINTF("output decoded %d, offset %d, fieldLength %d, length %d, isList %d, current %d \n", 
-                    decoded, offset, tmpCurrentFieldLength, length, tmpCurrentFieldIsList, *rlpP);
-                if (tmpCurrentFieldLength + 1 > length) {
+                if (tmpCurrentFieldLength + offset > length) {
+                    THROW(EXCEPTION);
+                }
+                rlpP += offset;
+                if (context->content->thetaTxType == THETA_STAKE_TX) { // read value for staking tx
+                    tmpRLPPointer = rlpP + ADDRESS_LENGTH + 2;
+                    decodeThetaTxValue(context, tmpRLPPointer);
+                }
+                rlpP += tmpCurrentFieldLength;
+                length -= offset + tmpCurrentFieldLength;
+
+                decoded = rlpDecodeLength(rlpP, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
+                if (tmpCurrentFieldLength + offset > length) {   // Not enought bytes to decode address/value
                     context->content->thetaDecodeSatus = THETATX_PROCESSING;
                     context->content->thetaBufferToRead = tmpCurrentFieldLength - length + 1;
                     memmove(context->content->thetaBuffer, rlpP, length);
@@ -150,11 +168,10 @@ void decodeThetaTx(txContext_t *context, uint32_t length) {
                 }
             } else if (context->content->thetaDecodeSatus == THETATX_PROCESSING) { // decode with Theta buffer
                 if (length < context->content->thetaBufferToRead) {
-                    context->content->thetaDecodeSatus = THETATX_FAULT;
-                    PRINTF("Decode ThetaTx failed, invalid buffer");
-                    return;
+                    THROW(EXCEPTION);
                 }
                 memmove(context->content->thetaBuffer + context->content->thetaBufferLength, rlpP, context->content->thetaBufferToRead);
+                // decoded = rlpDecodeLength(context->content->thetaBuffer, &tmpCurrentFieldLength, &offset, &tmpCurrentFieldIsList);
                 decodeThetaTxAddressAndValue(context, context->content->thetaBuffer, context->content->thetaBufferLength + context->content->thetaBufferToRead);
             }
         }
@@ -357,17 +374,13 @@ static void processData(txContext_t *context) {
     if (context->currentFieldPos < context->currentFieldLength) {
         uint32_t copySize =
             MIN(context->commandLength, context->currentFieldLength - context->currentFieldPos);
-        PRINTF("copySize is %d, context->commandLength is %d, context->currentFieldLength is %d, context->currentFieldPos is %d \n", 
-            copySize, context->commandLength, context->currentFieldLength, context->currentFieldPos);
-        // if (chainConfig->kind == CHAIN_KIND_THETA) { // not working
-        PRINTF("chainConfig->kind is %d, CHAIN_KIND_THETA is %d \n", chainConfig->kind, CHAIN_KIND_THETA);
+        // if (chainConfig->kind == CHAIN_KIND_THETA) {
         if (allzeroes(context->content->destination, sizeof(context->content->destination)) && allzeroes(&context->content->value, sizeof(context->content->value))
             && allzeroes(&context->content->gasprice, sizeof(context->content->gasprice)) || chainConfig->kind == CHAIN_KIND_THETA) { //Theta Tx
             chainConfig->kind = CHAIN_KIND_THETA;
             decodeThetaTx(context, copySize);
         }
         copyTxData(context, NULL, copySize);
-
     }
     if (context->currentFieldPos == context->currentFieldLength) {
         context->currentField++;
